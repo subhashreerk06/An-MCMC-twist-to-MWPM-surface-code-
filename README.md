@@ -1,14 +1,14 @@
 # MCMC-assisted surface-code decoding
 
-This project explores whether Markov Chain Monte Carlo (MCMC) sampling can add useful information to Minimum-Weight Perfect Matching (MWPM) for decoding the surface code.
+This project explores whether Markov Chain Monte Carlo (MCMC) sampling can add useful information to Minimum-Weight Perfect Matching (MWPM) when decoding the surface code.
 
-MWPM is already a very strong decoder. It efficiently finds a minimum-weight error configuration compatible with a measured syndrome.
+MWPM is already a very strong decoder. Given a measured syndrome, it efficiently finds a minimum-weight error configuration that could have produced it.
 
-The motivation here is slightly different:
+The question explored here is slightly different:
 
-> A syndrome can be explained by many different physical error configurations. Can exploring this larger set of configurations reveal information that is missed when we keep only the single minimum-weight solution?
+> A measured syndrome can be explained by many different physical error configurations. Can exploring this larger set of possibilities reveal useful information that is lost when we keep only one minimum-weight solution?
 
-The surface-code circuits are generated using [Stim](https://github.com/quantumlib/Stim). MWPM is used as the decoding baseline, while MCMC independently explores error configurations compatible with the same measured syndrome.
+Surface-code circuits are generated using [Stim](https://github.com/quantumlib/Stim). MWPM is used as the standard baseline, while MCMC independently explores other error configurations compatible with the same syndrome.
 
 ---
 
@@ -16,17 +16,17 @@ The surface-code circuits are generated using [Stim](https://github.com/quantuml
 
 A noisy surface-code experiment produces a detector syndrome $s$.
 
-The syndrome tells us which detectors changed, but it does **not** uniquely determine the physical error that caused them.
+The syndrome tells us where detection events occurred, but it does **not** uniquely identify the physical error that caused them.
 
 Many different error configurations can produce exactly the same syndrome.
 
-Each possible error mechanism $e$ in the decoding graph has an associated error probability $p_e$.
+Each possible error mechanism $e$ in the decoding graph is assigned an error probability $p_e$.
 
-The corresponding log-likelihood weight is
+Its log-likelihood weight is
 
 $$w_e=\ln\left(\frac{1-p_e}{p_e}\right)$$
 
-so that more probable errors receive smaller weights.
+so that more probable errors have smaller weights.
 
 For a complete error configuration $E$, the total weight is
 
@@ -36,19 +36,24 @@ Under the independent-edge noise model,
 
 $$P(E)\propto e^{-W(E)}$$
 
-so configurations with smaller total weight are more probable.
+so lower-weight configurations are more probable.
 
 ---
 
-## Syndrome constraint
+## The syndrome constraint
 
 An error configuration can be represented by a binary vector
 
 $$\mathbf{e}=(e_1,e_2,\ldots,e_M)$$
 
-where $e_i=1$ means that error edge $i$ is present and $e_i=0$ means that it is absent.
+where each component is either 0 or 1.
 
-A valid error configuration must reproduce the measured detector syndrome.
+Here,
+
+- $e_i=1$ means error edge $i$ is present,
+- $e_i=0$ means error edge $i$ is absent.
+
+A valid error configuration must reproduce the measured syndrome.
 
 This condition can be written over GF(2) as
 
@@ -56,21 +61,21 @@ $$H\mathbf{e}=\mathbf{s}\pmod 2$$
 
 where $H$ is the detector-edge incidence matrix.
 
-The full set of configurations compatible with a syndrome is therefore
+The set of all configurations compatible with the measured syndrome is therefore
 
-$$\mathcal{E}(\mathbf{s})=\left\{\mathbf{e}\;|\;H\mathbf{e}=\mathbf{s}\pmod 2\right\}$$
+$$\mathcal{E}(\mathbf{s})=\{\mathbf{e}:H\mathbf{e}=\mathbf{s}\pmod 2\}$$
 
-The main difficulty is that this set can contain many different physical error configurations.
+The important point is that this set can contain many different physical error configurations.
 
 ---
 
 # MWPM baseline
 
-Minimum-Weight Perfect Matching searches for a minimum-weight error configuration compatible with the measured syndrome.
+Minimum-Weight Perfect Matching searches for the lowest-weight configuration compatible with the measured syndrome.
 
 Conceptually,
 
-$$E_{\mathrm{MWPM}}=\underset{E:\,HE=s}{\operatorname{argmin}}\,W(E)$$
+$$E_{\mathrm{MWPM}}=\mathrm{arg\,min}_{E:\,HE=s}W(E)$$
 
 The logical prediction is then determined from the logical parity of this configuration.
 
@@ -78,11 +83,11 @@ MWPM is extremely efficient because the decoding problem can be transformed into
 
 However, MWPM primarily answers the question:
 
-> Which **individual** syndrome-compatible error configuration has the smallest weight?
+> Which individual syndrome-compatible error configuration has the lowest weight?
 
-There is another closely related question:
+There is another question that can also matter:
 
-> Which **logical class as a whole** contains the greatest total probability?
+> Which logical class contains the greatest total probability when all compatible configurations are considered?
 
 That distinction motivates the MCMC part of this project.
 
@@ -90,21 +95,25 @@ That distinction motivates the MCMC part of this project.
 
 # Degeneracy and logical classes
 
-Different physical error configurations can produce the same syndrome and can also belong to the same logical class.
+Different physical error configurations can produce the same syndrome.
+
+They can also differ by their logical effect.
 
 For the single logical observable considered here,
 
 $$L(E)\in\{0,1\}$$
 
-The total probability associated with logical class $L=0$ is proportional to
+All syndrome-compatible configurations can therefore be separated into two logical classes.
+
+The total posterior weight of logical class $L=0$ is
 
 $$Z_0(s)=\sum_{\substack{E:\,HE=s\\L(E)=0}}e^{-W(E)}$$
 
-while the corresponding quantity for logical class $L=1$ is
+and for logical class $L=1$,
 
 $$Z_1(s)=\sum_{\substack{E:\,HE=s\\L(E)=1}}e^{-W(E)}$$
 
-The logical posterior probabilities are therefore
+The corresponding logical probabilities are
 
 $$P(L=0\mid s)=\frac{Z_0(s)}{Z_0(s)+Z_1(s)}$$
 
@@ -112,11 +121,11 @@ and
 
 $$P(L=1\mid s)=\frac{Z_1(s)}{Z_0(s)+Z_1(s)}$$
 
-This means that the logical class containing the single lowest-weight configuration is not necessarily guaranteed to have the largest total probability.
+This means that the class containing the single lowest-weight configuration is not necessarily guaranteed to contain the greatest total probability.
 
-For example, MWPM may find one particularly good configuration in class $L=0$, while there may be many slightly heavier configurations in class $L=1$ whose probabilities add up to a larger value.
+For example, MWPM may find one particularly low-weight configuration in logical class 0, while logical class 1 may contain many slightly heavier configurations whose probabilities add up to a larger total.
 
-This is the degeneracy information that the MCMC approach is designed to explore.
+This is the degeneracy information that the MCMC method is designed to investigate.
 
 ---
 
@@ -124,15 +133,15 @@ This is the degeneracy information that the MCMC approach is designed to explore
 
 The MCMC decoder is deliberately independent of MWPM.
 
-It does **not** start from the MWPM solution.
+It does **not** start from the MWPM correction.
 
-Instead, it begins from a randomly generated configuration satisfying
+Instead, it begins from a random configuration satisfying
 
 $$H\mathbf{e}=\mathbf{s}\pmod 2$$
 
-The random valid configuration is obtained using GF(2) linear algebra.
+The initial configuration is generated directly from the GF(2) syndrome constraint.
 
-Starting from a current error configuration $E$, another syndrome-compatible configuration $E'$ is proposed.
+Starting from a current configuration $E$, another syndrome-compatible configuration $E'$ is proposed.
 
 The change in weight is
 
@@ -146,66 +155,69 @@ If the proposed configuration has lower weight,
 
 $$\Delta W\leq0$$
 
-and the proposal is always accepted.
+it is always accepted.
 
-If the proposed configuration has higher weight,
+If the proposal has higher weight,
 
 $$\Delta W>0$$
 
-then it is accepted with probability
+it can still be accepted with probability
 
 $$P_{\mathrm{acc}}=e^{-\Delta W}$$
 
-The resulting Markov chain targets
+The Markov chain therefore samples from a distribution proportional to
 
 $$\pi(E\mid s)\propto e^{-W(E)}$$
 
-This allows MCMC to explore many different physical configurations compatible with the same measured syndrome.
+while remaining inside the space of configurations compatible with the measured syndrome.
 
 ---
 
 # Why uniform random proposals struggled
 
-The first MCMC implementation proposed completely random configurations satisfying the syndrome constraint.
+The first MCMC implementation generated completely random configurations satisfying the syndrome constraint.
 
-These configurations were mathematically valid, but most of them had extremely large weights.
+These configurations were mathematically valid, but most of them had extremely large total weights.
 
-This caused two problems:
+As a result:
 
-- most proposed configurations were physically very unlikely,
-- the Metropolis acceptance rate became extremely small.
-
-The chain therefore struggled to reach the low-weight region of configuration space.
+- most proposals were physically very unlikely,
+- very few moves were accepted,
+- the chain explored the useful low-weight region very inefficiently.
 
 This led to an important observation:
 
-> Generating a configuration with the correct syndrome is easy. Generating a **useful** configuration with the correct syndrome is much harder.
+> Generating a syndrome-compatible configuration is easy. Generating a useful syndrome-compatible configuration is much harder.
 
-This motivated the introduction of a learned proposal distribution.
+This motivated the introduction of a learned proposal model.
 
 ---
 
-# Free-variable representation
+# Representing all valid configurations
 
 The solution space of the syndrome equation can be written as
 
 $$\mathbf{e}=\mathbf{e}_p(\mathbf{s})+N\mathbf{z}\pmod 2$$
 
-where
+where:
 
 - $\mathbf{e}_p(\mathbf{s})$ is one particular solution of the syndrome equation,
 - $N$ spans the null space of $H$,
-- $\mathbf{z}$ contains the free binary degrees of freedom.
+- $\mathbf{z}$ contains the free binary variables.
 
 Because
 
 $$HN=0$$
 
-every value of $\mathbf{z}$ automatically produces another error configuration with the same syndrome:
+changing $\mathbf{z}$ does not change the syndrome.
 
-$$H\mathbf{e}=H\mathbf{e}_p(\mathbf{s})=\mathbf{s}$$
+Therefore,
 
-This provides a convenient unconstrained binary coordinate system for generating syndrome-compatible error configurations.
+$$H\mathbf{e}=\mathbf{s}$$
+
+for every allowed value of $\mathbf{z}$.
+
+This gives a convenient way to represent the full space of syndrome-compatible error configurations.
 
 ---
 
@@ -215,107 +227,117 @@ A conditional binary generative model is trained to learn a proposal distributio
 
 $$q_\theta(\mathbf{z}\mid\mathbf{s})$$
 
-The purpose of the learned model is **not** to replace the physical noise model.
+The model learns which regions of the syndrome-compatible configuration space are more likely to contain physically relevant errors.
 
-The physical target distribution is still determined by the edge probabilities and the weight
+Importantly, the learned model does **not** replace the physical probability distribution.
+
+The physical target is still determined by
 
 $$W(E)=\sum_{e\in E}w_e$$
 
-The learned model only tries to propose configurations in regions that are more physically relevant than a completely uniform random draw.
+and
 
-This makes MCMC exploration much more efficient.
+$$\pi(E\mid s)\propto e^{-W(E)}$$
+
+The learned model only changes how candidate configurations are proposed.
+
+Its purpose is to help MCMC reach the low-weight region much more efficiently than uniform random proposals.
 
 ---
 
 # Metropolis-Hastings with learned proposals
 
-Once proposals are no longer uniform, the ordinary Metropolis acceptance rule must be corrected for the proposal probability.
+Once proposals are no longer uniform, their proposal probabilities must also be included in the acceptance rule.
 
 The Metropolis-Hastings ratio is
 
 $$R=\frac{\pi(E'\mid s)\,q_\theta(E\mid s)}{\pi(E\mid s)\,q_\theta(E'\mid s)}$$
 
-Using
+Since
 
 $$\pi(E\mid s)\propto e^{-W(E)}$$
 
-the logarithmic acceptance ratio becomes
+the logarithmic ratio becomes
 
 $$\ln R=W(E)-W(E')+\ln q_\theta(E\mid s)-\ln q_\theta(E'\mid s)$$
 
-The proposal is accepted when
+A proposal is accepted when
 
 $$\ln U<\min(0,\ln R)$$
 
-with
+where $U$ is drawn uniformly between 0 and 1.
 
-$$U\sim\mathrm{Uniform}(0,1)$$
-
-The target distribution therefore remains unchanged:
+The target distribution remains
 
 $$\pi(E\mid s)\propto e^{-W(E)}$$
 
-The learned model only changes **how candidate configurations are proposed**.
+so the learned model improves the search without changing the physical distribution that MCMC is supposed to sample.
 
 ---
 
-# From optimization to posterior decoding
+# From minimum-weight search to posterior decoding
 
-Initially, MCMC was used as a search algorithm.
+Initially, MCMC was used mainly as a search method.
 
-The lowest-weight state encountered during the chain was stored as
+The lowest-weight configuration encountered during the chain was recorded as
 
-$$E_{\mathrm{best}}=\underset{E\in\text{visited states}}{\operatorname{argmin}}\,W(E)$$
+$$E_{\mathrm{best}}=\mathrm{arg\,min}_{E\in\mathrm{visited}}W(E)$$
 
 This was useful for checking whether MCMC could reach the same low-weight region as MWPM.
 
-However, MWPM is already specifically designed to solve a minimum-weight problem.
+However, MWPM is already designed specifically to solve a minimum-weight problem.
 
-The more interesting use of MCMC is therefore not to compete with MWPM at finding
-
-$$\min_E W(E)$$
-
-but to sample many syndrome-compatible configurations and estimate how the total probability is distributed between logical classes.
+The more interesting use of MCMC is therefore to keep many sampled configurations and ask how the posterior probability is distributed between logical classes.
 
 ---
 
 # Posterior MCMC decoder
 
-After a burn-in period, the Markov-chain states are retained.
+After an initial burn-in period, the remaining MCMC states are retained.
 
-Suppose the retained configurations are
+Suppose there are $N$ retained samples.
 
-$$E_1,E_2,\ldots,E_N$$
+Let
 
-Each configuration has a logical class
+$$N_1=\text{number of retained samples with }L(E)=1$$
 
-$$L(E_i)\in\{0,1\}$$
+and
 
-The posterior probability of logical class $1$ is estimated as
+$$N_0=\text{number of retained samples with }L(E)=0$$
 
-$$\hat P(L=1\mid s)=\frac{1}{N}\sum_{i=1}^{N}\mathbf{1}\left[L(E_i)=1\right]$$
+with
 
-and therefore
+$$N=N_0+N_1$$
 
-$$\hat P(L=0\mid s)=1-\hat P(L=1\mid s)$$
+The logical posterior probabilities are estimated by
 
-The posterior decoder chooses the class with the larger estimated probability.
+$$\hat P(L=1\mid s)=\frac{N_1}{N}$$
 
-For example,
+and
 
-$$\hat P(L=1\mid s)>0.5\quad\Rightarrow\quad L_{\mathrm{post}}=1$$
+$$\hat P(L=0\mid s)=\frac{N_0}{N}$$
 
-while
+The posterior decoder then chooses the logical class with the greater sampled probability.
 
-$$\hat P(L=1\mid s)<0.5\quad\Rightarrow\quad L_{\mathrm{post}}=0$$
+If
 
-This changes the decoding question from
+$$\hat P(L=1\mid s)>0.5$$
 
-> Which individual error configuration has the smallest weight?
+the posterior prediction is logical class 1.
+
+If
+
+$$\hat P(L=1\mid s)<0.5$$
+
+the posterior prediction is logical class 0.
+
+This changes the question from
+
+> Which individual error configuration has minimum weight?
 
 to
 
-> Which logical class contains the greatest total posterior probability?
+> Which logical class carries the greatest total posterior probability?
 
 ---
 
@@ -323,7 +345,7 @@ to
 
 The final experiment compares the ordinary MWPM prediction with the posterior MCMC prediction.
 
-For each syndrome, both methods are evaluated independently.
+For every measured syndrome, both methods are evaluated independently.
 
 There are four possible outcomes:
 
@@ -331,30 +353,33 @@ There are four possible outcomes:
 |---|---|---|
 | Correct | Correct | Both decoders succeed |
 | Wrong | Correct | MCMC fixes an MWPM failure |
-| Correct | Wrong | MCMC damages a correct MWPM prediction |
+| Correct | Wrong | MCMC changes a correct MWPM result into a failure |
 | Wrong | Wrong | Both decoders fail |
 
-The main performance quantity is the logical error rate,
+The main performance measure is the logical error rate,
 
 $$\mathrm{LER}=\frac{N_{\mathrm{logical\ failures}}}{N_{\mathrm{shots}}}$$
 
-A genuine improvement would require
+A genuine decoding improvement would require
 
 $$\mathrm{LER}_{\mathrm{posterior}}<\mathrm{LER}_{\mathrm{MWPM}}$$
 
-Another useful quantity is the net number of MWPM failures corrected,
+Another useful measure is
 
 $$N_{\mathrm{net}}=N_{\mathrm{fixed}}-N_{\mathrm{broken}}$$
 
-where $N_{\mathrm{fixed}}$ counts MWPM failures corrected by posterior MCMC and $N_{\mathrm{broken}}$ counts correct MWPM predictions changed into failures.
+where:
 
-A positive $N_{\mathrm{net}}$ would indicate that the MCMC posterior contains useful information beyond the original MWPM prediction.
+- $N_{\mathrm{fixed}}$ is the number of MWPM failures corrected by posterior MCMC,
+- $N_{\mathrm{broken}}$ is the number of correct MWPM predictions changed into failures.
+
+If $N_{\mathrm{net}}>0$, the posterior layer has produced a net improvement on the tested sample.
 
 ---
 
 # Current result
 
-The current test uses
+The current experiment uses
 
 $$d=3,\qquad r=3,\qquad p=0.005$$
 
@@ -376,12 +401,12 @@ The paired comparison gave:
 
 - 99 shots where both methods were correct,
 - 0 MWPM failures corrected by MCMC,
-- 0 correct MWPM predictions damaged by MCMC,
-- 1 shot where both methods were wrong.
+- 0 correct MWPM predictions broken by MCMC,
+- 1 shot where both methods failed.
 
 Therefore,
 
-$$\boxed{\Delta\mathrm{LER}=\mathrm{LER}_{\mathrm{posterior}}-\mathrm{LER}_{\mathrm{MWPM}}=0}$$
+$$\Delta\mathrm{LER}=\mathrm{LER}_{\mathrm{posterior}}-\mathrm{LER}_{\mathrm{MWPM}}=0$$
 
 for this sample.
 
@@ -391,23 +416,23 @@ The posterior decoder did not change the logical prediction produced by MWPM on 
 
 # Interpretation
 
-The result does **not** mean that the degeneracy problem does not exist.
+The result does **not** mean that error degeneracy does not exist.
 
-The posterior MCMC explicitly includes information from many syndrome-compatible configurations that ordinary MWPM does not explicitly sum over.
+The MCMC posterior explicitly includes information from many syndrome-compatible configurations that ordinary MWPM does not explicitly sum over.
 
-However, for the syndromes sampled in this low-noise regime, the additional degeneracy information did not change the dominant logical class.
+However, for the syndromes observed in this low-noise experiment, the additional degeneracy information did not change which logical class was preferred.
 
 In other words, for these shots,
 
-$$\underset{E}{\operatorname{argmin}}\,W(E)$$
+$$\mathrm{arg\,min}_{E}W(E)$$
 
 and
 
-$$\underset{L}{\operatorname{argmax}}\,P(L\mid s)$$
+$$\mathrm{arg\,max}_{L}P(L\mid s)$$
 
 led to the same final logical prediction.
 
-So although MCMC incorporated more information about the space of compatible errors, that additional information did not improve the logical decision.
+So the additional posterior information was successfully included, but it did not alter the decoding decision.
 
 For this tested regime, MWPM was already sufficient.
 
@@ -415,19 +440,19 @@ For this tested regime, MWPM was already sufficient.
 
 # Computational cost
 
-There is also a large computational difference.
+There is also a large difference in computational cost.
 
 For the 100-shot posterior benchmark, MWPM required approximately
 
 $$1.9\times10^{-3}\ \mathrm{s/shot}$$
 
-while the posterior MCMC implementation required roughly
+while the current posterior MCMC implementation required approximately
 
 $$3.7\times10^{2}\ \mathrm{s/shot}$$
 
-The posterior calculation therefore required much more computation while producing the same final logical predictions in this experiment.
+The posterior method therefore required far more computation while producing the same logical predictions in this experiment.
 
-For this regime, the additional sampling cost was not justified by an improvement in decoding accuracy.
+For the tested regime, the additional sampling cost was not justified by an improvement in decoding accuracy.
 
 ---
 
@@ -435,33 +460,33 @@ For this regime, the additional sampling cost was not justified by an improvemen
 
 ## 1. Uniform random MCMC is inefficient
 
-Random syndrome-compatible configurations usually lie in extremely high-weight regions of configuration space.
+Random syndrome-compatible configurations usually lie in very high-weight regions of the solution space.
 
-This produces very low acceptance rates and inefficient exploration.
+This produces low acceptance rates and inefficient exploration.
 
-## 2. Learned proposals dramatically improve MCMC exploration
+## 2. Learned proposals greatly improve MCMC exploration
 
-The conditional proposal model guides the chain toward physically relevant low-weight configurations.
+The learned proposal model guides the chain toward physically relevant, low-weight configurations.
 
-In small tests, learned-proposal MCMC reached weights close to MWPM after only a small number of iterations, while uniform random MCMC remained at very large weights.
+In small tests, learned-proposal MCMC reached weights close to those found by MWPM after only a small number of iterations, while uniform random MCMC remained at much larger weights.
 
 ## 3. Degeneracy-aware posterior sampling did not improve MWPM in the tested regime
 
-Once posterior exploration became practical, the logical-class probability was compared directly with the ordinary MWPM prediction.
+Once posterior sampling became practical, the full logical-class probability was compared with the ordinary MWPM prediction.
 
 For
 
 $$d=3,\qquad p=0.005$$
 
-the posterior decoder and MWPM produced the same logical prediction on all 100 tested shots.
+MWPM and posterior MCMC produced the same logical prediction on all 100 tested shots.
 
-So, in this regime, explicitly accounting for degeneracy did not provide a measurable decoding improvement.
+So, in this regime, explicitly accounting for degeneracy did not provide a measurable improvement over MWPM.
 
 ---
 
 # What this does and does not imply
 
-The current result suggests that the minimum-weight approximation used by MWPM is already very effective for the tested low-noise surface-code regime.
+The current result suggests that the minimum-weight approximation used by MWPM is already very effective for this particular low-noise surface-code regime.
 
 It does **not** show that degeneracy is always irrelevant.
 
@@ -469,7 +494,7 @@ More difficult regimes may behave differently, including:
 
 - higher physical error probabilities,
 - larger code distances,
-- correlated errors,
+- correlated noise,
 - biased noise,
 - leakage or crosstalk,
 - syndromes close to logical ambiguity.
@@ -525,7 +550,7 @@ python -m pytest
 
 # Baseline benchmark
 
-A basic MWPM versus random-start MCMC comparison can be run with:
+Run the MWPM versus random-start MCMC comparison with:
 
 ```bash
 python -m surface_code.benchmark \
@@ -543,7 +568,7 @@ python -m surface_code.benchmark \
 
 # Flow-assisted MCMC
 
-After training a compatible proposal model, the learned-proposal decoder can be included using:
+After training a compatible proposal model, run:
 
 ```bash
 python -m surface_code.benchmark \
@@ -563,7 +588,7 @@ python -m surface_code.benchmark \
 
 # Posterior benchmark
 
-The degeneracy-aware posterior comparison can be run with:
+Run the degeneracy-aware comparison with:
 
 ```bash
 python -m surface_code.posterior_benchmark \
@@ -587,12 +612,10 @@ python -m surface_code.posterior_benchmark \
 
 # Main idea
 
-The project can be summarized by the distinction
+The project is based on the distinction
 
-$$\boxed{\text{MWPM finds the best individual error configuration}}$$
+**MWPM:** find the most likely individual error configuration.
 
-while
+**MCMC posterior:** estimate which logical class carries the greatest total probability.
 
-$$\boxed{\text{MCMC estimates which logical class carries the greatest total probability}}$$
-
-The current result is that, for the tested low-noise regime, these two approaches led to the same final logical predictions.
+For the low-noise regime tested so far, both approaches led to the same final logical predictions.
