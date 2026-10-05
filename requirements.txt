@@ -1,0 +1,8 @@
+stim
+numpy
+scipy
+networkx
+matplotlib
+pandas
+pytest
+torch>=2.6
